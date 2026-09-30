@@ -19,7 +19,7 @@ Las herramientas de texto y desarrollo funcionan antes de configurar servicios. 
 | Mercado Pago | Suscripción semanal y mensual | `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET` |
 | Resend | Formulario de soporte | `RESEND_API_KEY`, `SUPPORT_FROM_EMAIL` |
 | Cloudflare Workers | Sitio y API | `APP_ORIGIN`, `ADMIN_EMAIL` |
-| Google AdSense | Anuncios solo en páginas de herramientas | `VITE_ADSENSE_CLIENT`, `VITE_ADSENSE_SLOT` |
+| Google AdSense | Anuncios solo en páginas de herramientas de usuarios Free | `VITE_ADSENSE_CLIENT`, `VITE_ADSENSE_SLOT` |
 
 Los secretos del Worker se cargan con `npx wrangler secret put NOMBRE`; nunca coloques `SUPABASE_SERVICE_ROLE_KEY`, `MERCADOPAGO_ACCESS_TOKEN`, `RESEND_API_KEY` o `ADMIN_EMAIL` en variables `VITE_` ni en GitHub. `ADMIN_EMAIL` debe ser tu correo privado; nunca aparece en el sitio.
 
@@ -27,11 +27,15 @@ Los secretos del Worker se cargan con `npx wrangler secret put NOMBRE`; nunca co
 
 Cuando tengas dominio, establece `VITE_PUBLIC_ORIGIN=https://tu-dominio` y `APP_ORIGIN=https://tu-dominio`, ejecuta `npm run deploy` y registra `/api/mp-webhook` como Webhook de Mercado Pago para `subscription_preapproval` y `payment`. Supabase debe permitir el dominio y su ruta `/restablecer` como URL de redirección. El build crea 43 páginas HTML individuales, metadatos, schema.org, `robots.txt` y `sitemap.xml`; sin dominio deja la indexación desactivada para evitar URLs falsas. Luego añade el sitemap a Google Search Console y verifica la propiedad. La indexación y AdSense necesitan aprobación de Google; ningún código puede garantizarla.
 
+También puedes ejecutar manualmente **Actions → Publicar TextHuman Hub** en GitHub cuando configures `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` como secretos, y las variables públicas `VITE_*` como variables del repositorio. Los secretos del Worker se cargan por separado en Cloudflare con `wrangler secret put` o desde su panel.
+
 El anuncio se muestra solo si se configuran un cliente y slot de AdSense reales. Debes aprobar la cuenta y cumplir las políticas de anuncios antes de activarlo. El código no almacena los archivos procesados.
 
 ## Límites y notas
 
 Free: 2 tareas de archivos al día, máximo 5 MB. Pro: 100 tareas al día, máximo 50 MB. Las utilidades de texto y desarrollo son libres. Los límites se cobran al iniciar una tarea; si el navegador falla luego, ese intento cuenta. El panel muestra usuarios, Pro activos, usos, ingresos aprobados y los 100 usuarios recientes. No incluye gastos externos ni margen neto.
+
+Una persona Pro puede cancelar la renovación desde `/cuenta`; el Worker envía la cancelación a Mercado Pago y actualiza el estado. Comprueba con una cuenta de prueba que el periodo de acceso después de cancelar coincide con tu política comercial antes de vender el servicio.
 
 Los costos de los planes gratuitos de Cloudflare, Supabase, Resend o Mercado Pago dependen de sus límites, tarifas y uso real. No se puede prometer costo cero para siempre. No publiques hasta verificar en modo de prueba los pagos recurrentes, la recuperación por email y el webhook con tus cuentas reales.
 
