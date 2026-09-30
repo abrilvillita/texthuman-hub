@@ -1,0 +1,25 @@
+-- Ejecutar en el SQL Editor del proyecto Supabase antes de publicar.
+create table if not exists public.profiles (id uuid primary key references auth.users(id) on delete cascade, email text not null, created_at timestamptz not null default now());
+create table if not exists public.subscriptions (id bigint generated always as identity primary key, user_id uuid not null references auth.users(id) on delete cascade, provider text not null, provider_id text not null unique, plan text not null check(plan in ('weekly','monthly')), status text not null check(status in ('pending','active','cancelled')), updated_at timestamptz not null default now());
+create table if not exists public.usage_events (id bigint generated always as identity primary key, user_id uuid not null references auth.users(id) on delete cascade, tool text not null, bytes bigint not null default 0, created_at timestamptz not null default now());
+create table if not exists public.payments (id bigint generated always as identity primary key, provider_id text not null unique, subscription_id text, user_id uuid references auth.users(id) on delete set null, status text not null, amount numeric(12,2), currency text, paid_at timestamptz);
+create index if not exists usage_events_user_day on public.usage_events(user_id,created_at desc);
+create index if not exists subscriptions_user_status on public.subscriptions(user_id,status);
+alter table public.profiles enable row level security;
+alter table public.subscriptions enable row level security;
+alter table public.usage_events enable row level security;
+alter table public.payments enable row level security;
+create policy "own profile" on public.profiles for select to authenticated using ((select auth.uid())=id);
+create policy "own subscription" on public.subscriptions for select to authenticated using ((select auth.uid())=user_id);
+create policy "own usage" on public.usage_events for select to authenticated using ((select auth.uid())=user_id);
+create policy "own payments" on public.payments for select to authenticated using ((select auth.uid())=user_id);
+create or replace function public.hub_new_user() returns trigger language plpgsql security definer set search_path = '' as $$begin insert into public.profiles(id,email) values(new.id,coalesce(new.email,'')); return new; end$$;
+drop trigger if exists hub_on_auth_user_created on auth.users;
+create trigger hub_on_auth_user_created after insert on auth.users for each row execute function public.hub_new_user();
+revoke all on function public.hub_new_user() from public, anon, authenticated;
+create or replace function public.hub_usage_summary(p_user_id uuid,p_free_limit int) returns jsonb language plpgsql security definer set search_path = '' as $$declare v_pro boolean;v_used int;begin select exists(select 1 from public.subscriptions where user_id=p_user_id and status='active') into v_pro;select count(*) into v_used from public.usage_events where user_id=p_user_id and created_at>=date_trunc('day',now() at time zone 'utc') at time zone 'utc';return jsonb_build_object('plan',case when v_pro then 'pro' else 'free' end,'used',v_used,'remaining',greatest(0,(case when v_pro then 100 else p_free_limit end)-v_used));end$$;
+create or replace function public.hub_consume_usage(p_user_id uuid,p_tool text,p_bytes bigint,p_free_limit int,p_free_max_bytes bigint,p_pro_max_bytes bigint) returns jsonb language plpgsql security definer set search_path = '' as $$declare v_pro boolean;v_used int;begin perform pg_advisory_xact_lock(hashtext(p_user_id::text));select exists(select 1 from public.subscriptions where user_id=p_user_id and status='active') into v_pro;if p_tool in ('ocr-pdf','compress-video','video-speed') and not v_pro then raise exception 'Esta herramienta requiere Pro';end if;if p_bytes>(case when v_pro then p_pro_max_bytes else p_free_max_bytes end) then raise exception 'El archivo supera el límite de tu plan';end if;select count(*) into v_used from public.usage_events where user_id=p_user_id and created_at>=date_trunc('day',now() at time zone 'utc') at time zone 'utc';if v_used>=(case when v_pro then 100 else p_free_limit end) then raise exception 'Llegaste al límite de tareas de hoy';end if;insert into public.usage_events(user_id,tool,bytes) values(p_user_id,p_tool,p_bytes);return jsonb_build_object('plan',case when v_pro then 'pro' else 'free' end,'remaining',(case when v_pro then 100 else p_free_limit end)-v_used-1);end$$;
+revoke all on function public.hub_usage_summary(uuid,int) from public, anon, authenticated;
+revoke all on function public.hub_consume_usage(uuid,text,bigint,int,bigint,bigint) from public, anon, authenticated;
+create or replace view public.admin_user_overview with (security_invoker = true) as select p.id,p.email,p.created_at,count(distinct u.id) as uses, max(s.status) as subscription_status from public.profiles p left join public.usage_events u on u.user_id=p.id left join public.subscriptions s on s.user_id=p.id group by p.id,p.email,p.created_at;
+revoke all on public.admin_user_overview from public, anon, authenticated;
