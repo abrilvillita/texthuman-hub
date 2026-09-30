@@ -1,0 +1,7 @@
+{
+  "name": "texthuman-hub",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application" },
+  "vars": { "APP_ORIGIN": "https://YOUR_DOMAIN", "SUPPORT_TO_EMAIL": "texthumanapp@gmail.com", "FREE_DAILY_LIMIT": "2", "FREE_MAX_FILE_MB": "5", "PRO_WEEKLY_MXN": "35", "PRO_MONTHLY_MXN": "119" }
+}

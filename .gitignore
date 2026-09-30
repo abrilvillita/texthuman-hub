@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.dev.vars
+.env.local
+.env.production.local
+.wrangler/
+*.log
+work/
+outputs/
+*.tsbuildinfo
